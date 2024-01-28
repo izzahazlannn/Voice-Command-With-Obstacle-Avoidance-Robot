@@ -1,0 +1,314 @@
+/*//////////////////////////REFERENCES//////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////
+1. How to make a multi-function Arduino robot. (n.d.). SriTu Hobby
+   from https://srituhobby.com/how-to-make-a-multi-function-arduino-robot/
+
+
+2. how to make obstacle avoiding robot Arduino. (n.d.). Microcontrollers Lab
+   from https://microcontrollerslab.com/make-obstacle-avoidance-robot-using-arduino/
+////////////////////////////////////////////////////////////////////////////////////
+*///////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+#include <NewPing.h>
+#include <Servo.h>
+
+
+//define all the motors
+#define LeftMotor1 7
+#define LeftMotor2 8
+#define RightMotor1 5
+#define RightMotor2 6
+
+
+//define pins for obstacle detection
+//ultrasonic sensor
+#define trigpin 3
+#define echopin 2
+#define max_distance 250
+//ir sensor
+#define IR_sensor_left 10
+#define IR_sensor_right 12
+
+
+//initializes distance with 150
+int distance = 150;
+
+
+//distance measurement using ultrasonic sensor
+NewPing sonar (trigpin, echopin, max_distance);
+
+
+//used to control servo motor
+Servo servo_motor;
+
+
+
+
+void setup()
+{
+  Serial.begin(9600);
+ 
+  //initialize the motors as output
+  pinMode(LeftMotor1, OUTPUT);
+  pinMode(LeftMotor2, OUTPUT);
+  pinMode(RightMotor1, OUTPUT);
+  pinMode(RightMotor2, OUTPUT);
+
+
+  //initialize the ir sensors as input
+  pinMode(IR_sensor_left, INPUT);
+  pinMode(IR_sensor_right, INPUT);
+
+
+  //Set Trig Pin As O/P To Transmit Waves
+  pinMode(trigpin, OUTPUT);  
+  //Set Echo Pin As I/P To Receive Reflected Waves    
+  pinMode(echopin, INPUT);        
+
+
+  //Attach the servo motor to pin 4
+  servo_motor.attach(4);
+  //Set the initial position of servo motor to 90 degrees
+  servo_motor.write(90);
+
+
+  //Calibration or initialization for ultrasonic sensor
+  //To stabilize readings or ensure proper functioning
+  delay(2000);
+  distance = readPing();
+  delay(100);
+  distance = readPing();
+  delay(100);
+  distance = readPing();
+  delay(100);
+  distance = readPing();
+  delay(100);
+}
+
+
+void loop()
+{
+  //Initialize the distance values for left and right
+  int distanceRight = 0;
+  int distanceLeft = 0;
+
+
+  //Store the digital reading from IR sensors
+  int detect_left = digitalRead(IR_sensor_left);
+  int detect_right = digitalRead(IR_sensor_right);
+  delay(50);
+
+
+  //Obstacle avoidance
+  //if the position of obstacle detected is lesser than 40cm
+  if ( distance <= 40 )
+  {
+    //Print the distance value on Serial Monitor
+    Serial.println("Obstacle Detected");
+    Serial.print("Distance: ");
+    Serial.println(distance);
+
+
+    //Robot moves stop, backward, and stop
+    move_stop();
+    delay(300);
+    move_backward();
+    delay(400);
+    move_stop();
+    delay(300);
+
+
+    //Check left distance
+    distanceLeft = lookLeft();  
+    Serial.println("distance_Left: ");
+    Serial.println(distanceLeft);
+    delay(300);
+    //Check right distance
+    distanceRight = lookRight();    
+     Serial.println("distance_Right: ");
+    Serial.println(distanceRight);
+    delay(300);
+
+
+    //if left distance is lower than 40cm, obstacle at left
+    if (distanceLeft <= 40)
+    {
+      //robot turns right and stop
+      move_right();
+      move_stop();
+    }
+    //if there is no obstacle at left
+    else
+    {
+      //robot turns left and stop
+      move_left();
+      move_stop();
+    }
+  }
+
+
+  //if obstacle detected by left ir sensor
+  else if(detect_left == LOW)
+  {
+    //robot turns right
+    Serial.println("Obstacle Left Detected");
+    move_right();
+    Serial.println("Turn Right");
+  }
+
+
+  //if obstacle detected by right ir sensor
+  else if(detect_right == LOW)
+  {
+    //robot turns left
+    Serial.println("Obstacle Right Detected");
+    move_left();
+    Serial.println("Turn Left");
+  }
+ 
+  //Update the distance value
+  distance = readPing();
+
+
+  //if data received from the bluetooth module
+  if(Serial.available()){
+  Serial.println("Data available on Bluetooth");
+  //Read single character from bluetooth module and store it
+  char command = Serial.read();
+  //call function to present specified movement
+  execute_command(command);
+  }
+}
+
+
+//Execute the movement based on the command received
+void execute_command(char command){
+  Serial.print("Command received: ");
+  Serial.println(command);
+
+
+  switch (command)
+  {
+    case 'F':
+    move_forward();
+    break;
+    case 'B':
+    move_backward();
+    break;
+    case 'L':
+    move_left();
+    break;
+    case 'R':
+    move_right();
+    break;
+    case 'S':
+    move_stop();
+    break;
+    default:
+    Serial.println("Unknown Command");
+    break;
+  }
+}
+
+
+//Check left obstacle
+int lookLeft()
+{
+  Serial.println("lookLeft");
+  //Set the position of servo motor to 160 degrees, left side
+  servo_motor.write(160);
+  delay(1000);
+  //Measure the left distance
+  int distance_left = readPing();
+  delay(200);
+  //Set the position of servo motor to 90 degrees,forward
+  servo_motor.write(90);
+  //Return the measured distance to the calling code
+  return distance_left;
+}
+
+
+int lookRight()
+{
+  Serial.println("lookRight");
+  //Set the position of servo motor to 20 degrees, right side
+  servo_motor.write(20);
+  delay(1000);
+  //Measure the right distance
+  int distance_right = readPing();
+  delay(200);
+  //Set the position of servo motor to 90 degrees,forward
+  servo_motor.write(90);
+  //Return the measured distance to the calling code
+  return distance_right;
+}
+
+
+void move_right() {  
+  Serial.println("Turn Right");
+  analogWrite(LeftMotor1, 0);
+  analogWrite(LeftMotor2, 200);  
+  analogWrite(RightMotor1, 200);        
+  analogWrite(RightMotor2, 0);
+  delay(300);
+  move_stop();
+}
+
+
+void move_left() {  
+  Serial.println("Turn Left");
+  analogWrite(LeftMotor1, 200);
+  analogWrite(LeftMotor2, 0);  
+  analogWrite(RightMotor1, 0);  
+  analogWrite(RightMotor2, 200);
+  delay(300);
+  move_stop();
+}
+
+
+void move_backward() {  
+  Serial.println("Backward");
+  analogWrite(LeftMotor1, 0);
+  analogWrite(LeftMotor2, 200);  
+  analogWrite(RightMotor1, 0);  
+  analogWrite(RightMotor2, 200);
+  delay(300);
+  move_stop();
+}
+
+
+void move_forward() {  
+  Serial.println("Forward");
+  analogWrite(LeftMotor1, 200);
+  analogWrite(LeftMotor2, 0);
+  analogWrite(RightMotor1, 200);
+  analogWrite(RightMotor2, 0);  
+  //delay(300) ;
+}
+
+
+void move_stop() {
+  Serial.println("Stop");
+  analogWrite(LeftMotor1, 0);
+  analogWrite(LeftMotor2, 0);
+  analogWrite(RightMotor1, 0);
+  analogWrite(RightMotor2, 0);  
+
+
+}
+
+
+int readPing(){
+  delay(20);
+  //Perform ultrasonic distance measurement, store in cm
+  int cm = sonar.ping_cm();
+  //Indicated error condition
+  if(cm==0){
+    cm=250;
+    }
+  //Return the measured distance to calling code
+  return cm;
+}
